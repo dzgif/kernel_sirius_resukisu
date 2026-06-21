@@ -34,9 +34,7 @@ jobs:
     - name: Build kernel
       run: |
         cd kernel
-        # Remove -Werror globally
-        find . -name "Makefile" -exec sed -i 's/-Werror\b//g' {} \;
-        find . -name "Kbuild" -exec sed -i 's/-Werror\b//g' {} \;
+        
         
         ARCH=arm64 scripts/kconfig/merge_config.sh arch/arm64/configs/sdm670-perf_defconfig arch/arm64/configs/xiaomi/sdm710-common.config arch/arm64/configs/xiaomi/sirius.config
         echo "CONFIG_KSU=y" >> .config
