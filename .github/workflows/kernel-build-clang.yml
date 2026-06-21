@@ -1,0 +1,77 @@
+name: Build ReSukiSU Kernel (Clang)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout kernel source (Rocky7842 lineage-23.2-ksu)
+      uses: actions/checkout@v4
+      with:
+        repository: Rocky7842/android_kernel_xiaomi_sdm710
+        ref: lineage-23.2-ksu
+        path: kernel
+        submodules: recursive
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev \
+          gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
+          gcc-arm-linux-gnueabihf binutils-arm-linux-gnueabihf \
+          clang lld llvm
+        
+    - name: Replace kernelsu with ReSukiSU
+      run: |
+        cd kernel
+        # Remove existing kernelsu
+        rm -rf drivers/kernelsu
+        # Clone ReSukiSU
+        git clone --depth=1 https://github.com/ReSukiSU/ReSukiSU.git /tmp/ReSukiSU
+        # Copy ReSukiSU kernel code as drivers/kernelsu
+        cp -r /tmp/ReSukiSU/kernel drivers/kernelsu
+        echo "ReSukiSU kernel code installed"
+        ls drivers/kernelsu/
+        
+    - name: Build kernel
+      run: |
+        cd kernel
+        # Merge defconfig with sirius fragment
+        ARCH=arm64 scripts/kconfig/merge_config.sh arch/arm64/configs/sdm670-perf_defconfig arch/arm64/configs/xiaomi/sdm710-common.config arch/arm64/configs/xiaomi/sirius.config
+        # Enable KSU with manual hooks
+        echo "CONFIG_KSU=y" >> .config
+        echo "CONFIG_KSU_MANUAL_HOOK=y" >> .config
+        echo "CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK=y" >> .config
+        echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y" >> .config
+        echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK=y" >> .config
+        make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- olddefconfig
+        # Disable COMPAT_VDSO for clang
+        sed -i 's/CONFIG_COMPAT_VDSO=y/CONFIG_COMPAT_VDSO=n/' .config
+        make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- olddefconfig
+        grep "CONFIG_KSU\|CONFIG_COMPAT_VDSO" .config
+        # Build initramfs first to avoid race condition, then parallel
+        make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- -j1 usr/ KCFLAGS="-w"
+        make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- -j$(nproc) KCFLAGS="-w"
+        
+    - name: Package kernel
+      if: success()
+      run: |
+        cd kernel
+        mkdir -p ../output
+        DTB=$(find arch/arm64/boot/dts -name "sdm710.dtb" | head -1)
+        if [ -f arch/arm64/boot/Image.gz ] && [ -n "$DTB" ]; then
+          cat arch/arm64/boot/Image.gz "$DTB" > ../output/Image.gz-dtb
+          echo "Image.gz-dtb created"
+        fi
+        ls -la ../output/
+        
+    - name: Upload kernel
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-sirius-resukisu-clang
+        path: output/
