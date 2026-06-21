@@ -4832,7 +4832,7 @@ static DEVICE_ATTR_RW(dc_dimming);
 static struct attribute *display_fs_attrs[] = {
 	&dev_attr_fod_ui.attr,
 	&dev_attr_hbm.attr,
-	&dev_attr_dc.attr,
+	&dev_attr_dc_dimming.attr,
 	NULL,
 };
 static struct attribute_group display_fs_attrs_group = {
