@@ -1,0 +1,52 @@
+name: Build ReSukiSU Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout kernel source
+      uses: actions/checkout@v4
+      with:
+        path: kernel
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev \
+          gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
+          gcc-arm-linux-gnueabihf binutils-arm-linux-gnueabihf \
+          clang lld llvm
+        
+    - name: Build kernel
+      run: |
+        cd kernel
+        # Merge defconfig with sirius fragment
+        ARCH=arm64 scripts/kconfig/merge_config.sh arch/arm64/configs/sdm710-perf_defconfig arch/arm64/configs/xiaomi/sdm710-common.config arch/arm64/configs/xiaomi/sirius.config
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
+        grep "CONFIG_KSU\|CONFIG_COMPAT_VDSO" .config
+        # Build with clang
+        make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- -j$(nproc) KCFLAGS="-w -Wno-error -Wno-int-conversion"
+        
+    - name: Package kernel
+      if: success()
+      run: |
+        cd kernel
+        mkdir -p ../output
+        DTB=$(find arch/arm64/boot/dts -name "sdm710.dtb" | head -1)
+        if [ -f arch/arm64/boot/Image.gz ] && [ -n "$DTB" ]; then
+          cat arch/arm64/boot/Image.gz "$DTB" > ../output/Image.gz-dtb
+          echo "Image.gz-dtb created"
+        fi
+        ls -la ../output/
+        
+    - name: Upload kernel
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-sirius-resukisu
+        path: output/
