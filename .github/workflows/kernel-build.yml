@@ -29,6 +29,9 @@ jobs:
         # Merge defconfig with sirius fragment
         ARCH=arm64 scripts/kconfig/merge_config.sh arch/arm64/configs/sdm670-perf_defconfig arch/arm64/configs/xiaomi/sdm710-common.config arch/arm64/configs/xiaomi/sirius.config
         make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
+        # Disable COMPAT_VDSO for clang
+        sed -i 's/CONFIG_COMPAT_VDSO=y/CONFIG_COMPAT_VDSO=n/' .config
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
         grep "CONFIG_KSU\|CONFIG_COMPAT_VDSO" .config
         # Build with clang
         make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- -j$(nproc) KCFLAGS="-w -Wno-error -Wno-int-conversion"
