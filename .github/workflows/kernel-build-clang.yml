@@ -31,22 +31,13 @@ jobs:
         curl -sL https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh -o setup_ksu.sh
         chmod +x setup_ksu.sh
         ./setup_ksu.sh
-        echo "ReSukiSU setup done"
         
     - name: Fix clang include issues
       run: |
         cd kernel
-        # Fix btfm_slim includes (clang strict about angle vs quote)
-        sed -i 's/#include <btfm_slim.h>/#include "btfm_slim.h"/g' drivers/bluetooth/btfm_slim.c
-        sed -i 's/#include <btfm_slim_wcn3990.h>/#include "btfm_slim_wcn3990.h"/g' drivers/bluetooth/btfm_slim.c
-        sed -i 's/#include <btfm_slim.h>/#include "btfm_slim.h"/g' drivers/bluetooth/btfm_slim_wcn3990.h
-        # Fix xt_* case sensitivity (macOS case-insensitive)
-        for f in drivers/net/netfilter/xt_*.c; do
-          lower=$(echo "$f" | tr 'A-Z' 'a-z')
-          if [ "$f" != "$lower" ] && [ ! -f "$lower" ]; then
-            cp "$f" "$lower"
-          fi
-        done
+        # Fix ALL btfm_slim includes in bluetooth dir
+        find drivers/bluetooth -name '*.c' -o -name '*.h' | xargs sed -i 's/#include <btfm_slim\.h>/#include "btfm_slim.h"/g'
+        find drivers/bluetooth -name '*.c' -o -name '*.h' | xargs sed -i 's/#include <btfm_slim_wcn3990\.h>/#include "btfm_slim_wcn3990.h"/g'
         
     - name: Build kernel
       run: |
@@ -72,7 +63,6 @@ jobs:
         DTB=$(find arch/arm64/boot/dts -name "sdm710.dtb" | head -1)
         if [ -f arch/arm64/boot/Image.gz ] && [ -n "$DTB" ]; then
           cat arch/arm64/boot/Image.gz "$DTB" > ../output/Image.gz-dtb
-          echo "Image.gz-dtb created"
         fi
         ls -la ../output/
         
