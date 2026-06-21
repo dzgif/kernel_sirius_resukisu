@@ -25,17 +25,17 @@ jobs:
           gcc-arm-linux-gnueabihf binutils-arm-linux-gnueabihf \
           clang lld llvm
         
-    - name: Replace kernelsu with ReSukiSU
+    - name: Replace kernelsu with ReSukiSU submodule
       run: |
         cd kernel
         # Remove existing kernelsu
         rm -rf drivers/kernelsu
-        # Clone ReSukiSU
-        git clone --depth=1 https://github.com/ReSukiSU/ReSukiSU.git /tmp/ReSukiSU
-        # Copy ReSukiSU kernel code as drivers/kernelsu
-        cp -r /tmp/ReSukiSU/kernel drivers/kernelsu
-        echo "ReSukiSU kernel code installed"
-        ls drivers/kernelsu/
+        # Add ReSukiSU as git submodule
+        git submodule add https://github.com/ReSukiSU/ReSukiSU.git KernelSU
+        # Create symlink from drivers/kernelsu to KernelSU/kernel
+        ln -sf ../../KernelSU/kernel drivers/kernelsu
+        echo "ReSukiSU submodule installed"
+        ls -la drivers/kernelsu/
         
     - name: Build kernel
       run: |
