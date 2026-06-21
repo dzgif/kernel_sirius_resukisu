@@ -1,0 +1,68 @@
+name: Build ReSukiSU Kernel (GCC - ksu branch)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout kernel source (Rocky7842 lineage-23.2-ksu)
+      uses: actions/checkout@v4
+      with:
+        repository: Rocky7842/android_kernel_xiaomi_sdm710
+        ref: lineage-23.2-ksu
+        path: kernel
+        submodules: recursive
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev \
+          gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+          gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi \
+          gcc-arm-linux-gnueabihf binutils-arm-linux-gnueabihf
+        
+    - name: Setup ReSukiSU
+      run: |
+        cd kernel
+        curl -sL https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh -o setup_ksu.sh
+        chmod +x setup_ksu.sh
+        ./setup_ksu.sh
+        
+    - name: Build kernel
+      run: |
+        cd kernel
+        # Remove -Werror globally
+        find . -name "Makefile" -exec sed -i 's/-Werror\b//g' {} \;
+        find . -name "Kbuild" -exec sed -i 's/-Werror\b//g' {} \;
+        
+        ARCH=arm64 scripts/kconfig/merge_config.sh arch/arm64/configs/sdm670-perf_defconfig arch/arm64/configs/xiaomi/sdm710-common.config arch/arm64/configs/xiaomi/sirius.config
+        echo "CONFIG_KSU=y" >> .config
+        echo "CONFIG_KSU_MANUAL_HOOK=y" >> .config
+        echo "CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK=y" >> .config
+        echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y" >> .config
+        echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK=y" >> .config
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
+        grep "CONFIG_KSU" .config
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- -j1 usr/ KCFLAGS="-w"
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- -j$(nproc) KCFLAGS="-w"
+        
+    - name: Package kernel
+      if: success()
+      run: |
+        cd kernel
+        mkdir -p ../output
+        DTB=$(find arch/arm64/boot/dts -name "sdm710.dtb" | head -1)
+        if [ -f arch/arm64/boot/Image.gz ] && [ -n "$DTB" ]; then
+          cat arch/arm64/boot/Image.gz "$DTB" > ../output/Image.gz-dtb
+        fi
+        ls -la ../output/
+        
+    - name: Upload kernel
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-sirius-resukisu-gcc
+        path: output/
