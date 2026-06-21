@@ -28,30 +28,39 @@ jobs:
     - name: Setup ReSukiSU
       run: |
         cd kernel
-        # Use ReSukiSU's setup script
         curl -sL https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh -o setup_ksu.sh
         chmod +x setup_ksu.sh
         ./setup_ksu.sh
         echo "ReSukiSU setup done"
-        ls -la drivers/kernelsu/
+        
+    - name: Fix clang include issues
+      run: |
+        cd kernel
+        # Fix btfm_slim includes (clang strict about angle vs quote)
+        sed -i 's/#include <btfm_slim.h>/#include "btfm_slim.h"/g' drivers/bluetooth/btfm_slim.c
+        sed -i 's/#include <btfm_slim_wcn3990.h>/#include "btfm_slim_wcn3990.h"/g' drivers/bluetooth/btfm_slim.c
+        sed -i 's/#include <btfm_slim.h>/#include "btfm_slim.h"/g' drivers/bluetooth/btfm_slim_wcn3990.h
+        # Fix xt_* case sensitivity (macOS case-insensitive)
+        for f in drivers/net/netfilter/xt_*.c; do
+          lower=$(echo "$f" | tr 'A-Z' 'a-z')
+          if [ "$f" != "$lower" ] && [ ! -f "$lower" ]; then
+            cp "$f" "$lower"
+          fi
+        done
         
     - name: Build kernel
       run: |
         cd kernel
-        # Merge defconfig with sirius fragment
         ARCH=arm64 scripts/kconfig/merge_config.sh arch/arm64/configs/sdm670-perf_defconfig arch/arm64/configs/xiaomi/sdm710-common.config arch/arm64/configs/xiaomi/sirius.config
-        # Enable KSU with manual hooks
         echo "CONFIG_KSU=y" >> .config
         echo "CONFIG_KSU_MANUAL_HOOK=y" >> .config
         echo "CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK=y" >> .config
         echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y" >> .config
         echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK=y" >> .config
         make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- olddefconfig
-        # Disable COMPAT_VDSO for clang
         sed -i 's/CONFIG_COMPAT_VDSO=y/CONFIG_COMPAT_VDSO=n/' .config
         make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- olddefconfig
         grep "CONFIG_KSU\|CONFIG_COMPAT_VDSO" .config
-        # Build initramfs first to avoid race condition, then parallel
         make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- -j1 usr/ KCFLAGS="-w"
         make ARCH=arm64 CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CLANG_TRIPLE=aarch64-linux-gnu- -j$(nproc) KCFLAGS="-w"
         
