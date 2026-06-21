@@ -31,11 +31,15 @@ jobs:
         chmod +x setup_ksu.sh
         ./setup_ksu.sh
         
+    - name: Fix build issues
+      run: |
+        cd kernel
+        # Fix bluetooth include path
+        echo 'ccflags-y += -I$(src)' >> drivers/bluetooth/Makefile
+        
     - name: Build kernel
       run: |
         cd kernel
-        
-        
         ARCH=arm64 scripts/kconfig/merge_config.sh arch/arm64/configs/sdm670-perf_defconfig arch/arm64/configs/xiaomi/sdm710-common.config arch/arm64/configs/xiaomi/sirius.config
         echo "CONFIG_KSU=y" >> .config
         echo "CONFIG_KSU_MANUAL_HOOK=y" >> .config
