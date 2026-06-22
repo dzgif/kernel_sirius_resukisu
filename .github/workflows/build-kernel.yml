@@ -48,30 +48,30 @@ jobs:
           
           cd $KSRC
           
-          # Clean source tree
-          make ARCH=$ARCH mrproper
-          
+          # Clean source tree completely
+          make ARCH=arm64 mrproper
+
           # Generate base config
-          make ARCH=$ARCH O=out $DEFCONFIG
+          make ARCH=arm64 $DEFCONFIG
           
           # Apply fragments
           for frag in $FRAGMENTS; do
             if [ -f "arch/arm64/configs/$frag" ]; then
               echo "Applying fragment: $frag"
-              scripts/kconfig/merge_config.sh -m out/.config arch/arm64/configs/$frag
+              scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/$frag
             fi
           done
           
           # Finalize config
-          make ARCH=$ARCH O=out olddefconfig
+          make ARCH=arm64 olddefconfig
           
           echo "=== KSU config ==="
-          grep -E "CONFIG_KSU" out/.config
+          grep -E "CONFIG_KSU" .config
 
       - name: Build kernel
         run: |
           cd ${{ github.workspace }}
-          make -j$(nproc) ARCH=arm64 O=out \
+          make -j$(nproc) ARCH=arm64 \
             CC=${{ env.CC }} \
             CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -81,16 +81,16 @@ jobs:
       - name: Package artifacts
         run: |
           mkdir -p output
-          cp out/arch/arm64/boot/Image output/ 2>/dev/null || true
-          cp out/.config output/kernel-config 2>/dev/null || true
+          cp arch/arm64/boot/Image output/ 2>/dev/null || true
+          cp .config output/kernel-config 2>/dev/null || true
           # Copy DTBs if available
-          cp -r out/arch/arm64/boot/dts/qcom output/dtbs 2>/dev/null || true
+          cp -r arch/arm64/boot/dts/qcom output/dtbs 2>/dev/null || true
           
           # Get version info
           cd output
-          echo "Kernel: $(head -1 ../out/.config 2>/dev/null)" > build-info.txt
+          echo "Kernel: $(head -1 ../.config 2>/dev/null)" > build-info.txt
           echo "Date: $(date -u)" >> build-info.txt
-          echo "KSU: $(grep CONFIG_KSU ../out/.config 2>/dev/null)" >> build-info.txt
+          echo "KSU: $(grep CONFIG_KSU ../.config 2>/dev/null)" >> build-info.txt
           echo "Commit: $(cd .. && git rev-parse --short HEAD)" >> build-info.txt
           
           ls -la
