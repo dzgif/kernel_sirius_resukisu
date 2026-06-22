@@ -2,16 +2,11 @@ name: Build Kernel for Sirius (SDM710)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - 'drivers/kernelsu/**'
-      - 'arch/arm64/configs/**'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
     
     steps:
       - name: Checkout
@@ -20,80 +15,72 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Setup build environment
+      - name: Build kernel in Docker
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential bc bison flex libssl-dev libelf-dev \
-            python3 python3-pip gcc-aarch64-linux-gnu \
-            binutils-aarch64-linux-gnu cpio kmod
-        
-      - name: Setup Clang
-        run: |
-          # Use AOSP Clang (latest stable)
-          mkdir -p /tmp/clang
-          cd /tmp/clang
-          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r563880c.tar.gz -O clang.tar.gz
-          tar xzf clang.tar.gz
-          echo "CC=/tmp/clang/bin/clang" >> $GITHUB_ENV
-          echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
-          /tmp/clang/bin/clang --version
-
-      - name: Generate defconfig
-        run: |
-          ARCH=arm64
-          KSRC=${{ github.workspace }}
-          DEFCONFIG=sdm670-perf_defconfig
-          FRAGMENTS="xiaomi/sdm710-common.config xiaomi/sirius.config"
+          cat > build.sh << 'SCRIPT'
+          #!/bin/bash
+          set -e
           
-          cd $KSRC
+          cd /kernel
           
-          # Clean source tree completely
+          # Clean
           make ARCH=arm64 mrproper
-
-          # Generate base config
-          make ARCH=arm64 $DEFCONFIG
+          
+          # Generate defconfig
+          make ARCH=arm64 sdm670-perf_defconfig
           
           # Apply fragments
-          for frag in $FRAGMENTS; do
-            if [ -f "arch/arm64/configs/$frag" ]; then
-              echo "Applying fragment: $frag"
-              scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/$frag
-            fi
-          done
-          
-          # Finalize config
+          scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/xiaomi/sdm710-common.config
+          scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/xiaomi/sirius.config
           make ARCH=arm64 olddefconfig
           
           echo "=== KSU config ==="
-          grep -E "CONFIG_KSU" .config
-
-      - name: Build kernel
-        run: |
-          cd ${{ github.workspace }}
+          grep CONFIG_KSU .config
+          echo "=== Clang version ==="
+          $CC --version | head -1
+          
+          # Build
           make -j$(nproc) ARCH=arm64 \
-            CC=${{ env.CC }} \
-            CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
+            CC=$CC \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            Image dtbs 2>&1 | tail -50
+            Image dtbs 2>&1 | tail -20
+          
+          echo "=== Build result ==="
+          ls -lh arch/arm64/boot/Image 2>&1
+          SCRIPT
+          
+          chmod +x build.sh
+          
+          docker run --rm \
+            -v $(pwd):/kernel \
+            -w /kernel \
+            -e CC=/clang/bin/clang \
+            ghcr.io/nickcao/aosp-clang:main \
+            bash -c "
+              # Download the exact clang r563880c
+              mkdir -p /clang && cd /clang
+              wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r563880c.tar.gz -O clang.tar.gz
+              tar xzf clang.tar.gz
+              
+              # Install cross compiler
+              apt-get update -qq && apt-get install -y -qq gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi bc flex bison libssl-dev cpio kmod 2>&1 | tail -3
+              
+              # Run build
+              cd /kernel && bash build.sh
+            "
 
       - name: Package artifacts
+        if: always()
         run: |
           mkdir -p output
-          cp arch/arm64/boot/Image output/ 2>/dev/null || true
-          cp .config output/kernel-config 2>/dev/null || true
-          # Copy DTBs if available
-          cp -r arch/arm64/boot/dts/qcom output/dtbs 2>/dev/null || true
-          
-          # Get version info
+          cp arch/arm64/boot/Image output/ 2>/dev/null || echo "Image not found"
+          cp .config output/kernel-config 2>/dev/null || echo "config not found"
           cd output
-          echo "Kernel: $(head -1 ../.config 2>/dev/null)" > build-info.txt
-          echo "Date: $(date -u)" >> build-info.txt
-          echo "KSU: $(grep CONFIG_KSU ../.config 2>/dev/null)" >> build-info.txt
+          echo "Date: $(date -u)" > build-info.txt
           echo "Commit: $(cd .. && git rev-parse --short HEAD)" >> build-info.txt
-          
-          ls -la
+          ls -lh
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
