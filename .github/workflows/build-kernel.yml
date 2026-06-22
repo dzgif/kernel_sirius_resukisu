@@ -1,0 +1,99 @@
+name: Build Kernel for Sirius (SDM710)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'drivers/kernelsu/**'
+      - 'arch/arm64/configs/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            python3 python3-pip gcc-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu cpio kmod
+        
+      - name: Setup Clang
+        run: |
+          # Use AOSP Clang (latest stable)
+          mkdir -p /tmp/clang
+          cd /tmp/clang
+          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
+          tar xzf clang.tar.gz
+          echo "CC=/tmp/clang/bin/clang" >> $GITHUB_ENV
+          echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+          /tmp/clang/bin/clang --version
+
+      - name: Generate defconfig
+        run: |
+          ARCH=arm64
+          KSRC=${{ github.workspace }}
+          DEFCONFIG=sdm670-perf_defconfig
+          FRAGMENTS="xiaomi/sdm710-common.config xiaomi/sirius.config"
+          
+          cd $KSRC
+          
+          # Generate base config
+          make ARCH=$ARCH O=out $DEFCONFIG
+          
+          # Apply fragments
+          for frag in $FRAGMENTS; do
+            if [ -f "arch/arm64/configs/$frag" ]; then
+              echo "Applying fragment: $frag"
+              scripts/kconfig/merge_config.sh -m out/.config arch/arm64/configs/$frag
+            fi
+          done
+          
+          # Finalize config
+          make ARCH=$ARCH O=out olddefconfig
+          
+          echo "=== KSU config ==="
+          grep -E "CONFIG_KSU" out/.config
+
+      - name: Build kernel
+        run: |
+          cd ${{ github.workspace }}
+          make -j$(nproc) ARCH=arm64 O=out \
+            CC=${{ env.CC }} \
+            CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            Image dtbo.img 2>&1 | tail -50
+
+      - name: Package artifacts
+        run: |
+          mkdir -p output
+          cp out/arch/arm64/boot/Image output/ 2>/dev/null || true
+          cp out/arch/arm64/boot/dtbo.img output/ 2>/dev/null || true
+          cp out/.config output/kernel-config 2>/dev/null || true
+          
+          # Get version info
+          cd output
+          echo "Kernel: $(head -1 ../out/.config 2>/dev/null)" > build-info.txt
+          echo "Date: $(date -u)" >> build-info.txt
+          echo "KSU: $(grep CONFIG_KSU ../out/.config 2>/dev/null)" >> build-info.txt
+          echo "Commit: $(cd .. && git rev-parse --short HEAD)" >> build-info.txt
+          
+          ls -la
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-sirius-${{ github.sha }}
+          path: output/
+          retention-days: 30
