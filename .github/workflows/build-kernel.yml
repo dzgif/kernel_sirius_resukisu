@@ -48,6 +48,9 @@ jobs:
           
           cd $KSRC
           
+          # Clean source tree
+          make ARCH=$ARCH mrproper
+          
           # Generate base config
           make ARCH=$ARCH O=out $DEFCONFIG
           
