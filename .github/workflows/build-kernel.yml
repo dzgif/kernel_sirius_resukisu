@@ -15,13 +15,25 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Build kernel in Docker
+      - name: Setup build environment
         run: |
-          cat > build.sh << 'SCRIPT'
-          #!/bin/bash
-          set -e
-          
-          cd /kernel
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            cpio kmod gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Setup Clang r563880c
+        run: |
+          mkdir -p /tmp/clang && cd /tmp/clang
+          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r563880c.tar.gz -O clang.tar.gz
+          tar xzf clang.tar.gz
+          echo "CC=/tmp/clang/bin/clang" >> $GITHUB_ENV
+          echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+          /tmp/clang/bin/clang --version | head -1
+
+      - name: Build kernel
+        run: |
+          cd ${{ github.workspace }}
           
           # Clean
           make ARCH=arm64 mrproper
@@ -36,40 +48,14 @@ jobs:
           
           echo "=== KSU config ==="
           grep CONFIG_KSU .config
-          echo "=== Clang version ==="
-          $CC --version | head -1
           
           # Build
           make -j$(nproc) ARCH=arm64 \
-            CC=$CC \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CC=${{ env.CC }} \
+            CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            Image dtbs 2>&1 | tail -20
-          
-          echo "=== Build result ==="
-          ls -lh arch/arm64/boot/Image 2>&1
-          SCRIPT
-          
-          chmod +x build.sh
-          
-          docker run --rm \
-            -v $(pwd):/kernel \
-            -w /kernel \
-            -e CC=/clang/bin/clang \
-            ghcr.io/nickcao/aosp-clang:main \
-            bash -c "
-              # Download the exact clang r563880c
-              mkdir -p /clang && cd /clang
-              wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r563880c.tar.gz -O clang.tar.gz
-              tar xzf clang.tar.gz
-              
-              # Install cross compiler
-              apt-get update -qq && apt-get install -y -qq gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi bc flex bison libssl-dev cpio kmod 2>&1 | tail -3
-              
-              # Run build
-              cd /kernel && bash build.sh
-            "
+            Image 2>&1 | tail -30
 
       - name: Package artifacts
         if: always()
@@ -80,6 +66,7 @@ jobs:
           cd output
           echo "Date: $(date -u)" > build-info.txt
           echo "Commit: $(cd .. && git rev-parse --short HEAD)" >> build-info.txt
+          echo "Clang: r563880c" >> build-info.txt
           ls -lh
 
       - name: Upload artifacts
