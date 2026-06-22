@@ -73,14 +73,15 @@ jobs:
             CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            Image dtbo.img 2>&1 | tail -50
+            Image dtbs 2>&1 | tail -50
 
       - name: Package artifacts
         run: |
           mkdir -p output
           cp out/arch/arm64/boot/Image output/ 2>/dev/null || true
-          cp out/arch/arm64/boot/dtbo.img output/ 2>/dev/null || true
           cp out/.config output/kernel-config 2>/dev/null || true
+          # Copy DTBs if available
+          cp -r out/arch/arm64/boot/dts/qcom output/dtbs 2>/dev/null || true
           
           # Get version info
           cd output
