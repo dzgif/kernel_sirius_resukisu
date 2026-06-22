@@ -22,10 +22,10 @@ jobs:
             build-essential bc bison flex libssl-dev libelf-dev \
             cpio kmod gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Setup Clang r563880c
+      - name: Setup Clang r547379
         run: |
           mkdir -p /tmp/clang && cd /tmp/clang
-          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r563880c.tar.gz -O clang.tar.gz
+          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
           tar xzf clang.tar.gz
           echo "CC=/tmp/clang/bin/clang" >> $GITHUB_ENV
           echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
