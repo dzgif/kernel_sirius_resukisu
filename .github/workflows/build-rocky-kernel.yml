@@ -61,7 +61,7 @@ jobs:
             CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            EXTRA_CFLAGS="-I$(pwd)/drivers/bluetooth" \
+            KCFLAGS="-I$(pwd)/drivers/bluetooth -I$(pwd)/drivers/gpu/msm -I$(pwd)/drivers/clk/qcom/mdss" \
             Image 2>&1
 
       - name: Package artifacts
