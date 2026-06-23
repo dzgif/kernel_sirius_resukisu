@@ -15,9 +15,6 @@ jobs:
             https://github.com/Rocky7842/android_kernel_xiaomi_sdm710.git kernel
           cd kernel
           git submodule update --init --recursive 2>&1 | tail -5
-          echo "=== KSU check ==="
-          ls drivers/kernelsu/ | head -5
-          grep CONFIG_KSU arch/arm64/configs/xiaomi/sirius.config 2>/dev/null || echo "no KSU in sirius.config"
 
       - name: Setup build environment
         run: |
@@ -33,11 +30,21 @@ jobs:
           tar xzf clang.tar.gz
           echo "CC=/tmp/clang/bin/clang" >> $GITHUB_ENV
           echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
-          /tmp/clang/bin/clang --version | head -1
 
       - name: Build kernel
         run: |
           cd ${{ github.workspace }}/kernel
+          
+          # Find all trace header directories
+          TRACE_INCLUDES=""
+          for dir in $(find drivers -name "*_trace.h" -not -path "*/.git/*" | sed 's|/[^/]*$||' | sort -u); do
+            TRACE_INCLUDES="$TRACE_INCLUDES -I$(pwd)/$dir"
+          done
+          # Also add bluetooth
+          TRACE_INCLUDES="$TRACE_INCLUDES -I$(pwd)/drivers/bluetooth"
+          
+          echo "=== Include paths ==="
+          echo "$TRACE_INCLUDES" | tr ' ' '\n' | wc -l
           
           make ARCH=arm64 mrproper
           make ARCH=arm64 sdm670-perf_defconfig
@@ -56,13 +63,14 @@ jobs:
           echo "=== KSU config ==="
           grep CONFIG_KSU .config
           
+          # Build with ALL include paths
           make -j$(nproc) ARCH=arm64 \
             CC=${{ env.CC }} \
             CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            KCFLAGS="-I$(pwd)/drivers/bluetooth -I$(pwd)/drivers/gpu/msm -I$(pwd)/drivers/clk/qcom/mdss" \
-            Image 2>&1
+            KCFLAGS="$TRACE_INCLUDES" \
+            Image
 
       - name: Package artifacts
         if: always()
