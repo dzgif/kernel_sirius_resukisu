@@ -71,6 +71,7 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             KCFLAGS="-Wno-strict-prototypes -Wno-array-parameter" \
+            AS=arm-linux-gnueabi-as \
             Image
 
       - name: Package artifacts
