@@ -65,13 +65,9 @@ jobs:
           echo "=== Kernel version ==="
           head -4 Makefile
           
-          # Auto-detect trace header includes
-          TRACE_INCLUDES=""
-          for dir in $(find drivers -name "*_trace.h" -not -path "*/.git/*" | sed 's|/[^/]*$||' | sort -u); do
-            TRACE_INCLUDES="$TRACE_INCLUDES -I$(pwd)/$dir"
-          done
-          TRACE_INCLUDES="$TRACE_INCLUDES -I$(pwd)/drivers/bluetooth"
-          echo "=== Include paths: $(echo $TRACE_INCLUDES | tr ' ' '\n' | wc -l) ==="
+          # Patch Makefile to add include paths for missing headers
+          sed -i 's|LINUXINCLUDE.*|LINUXINCLUDE := -I$(srctree)/drivers/bluetooth -I$(srctree)/drivers/gpu/msm -I$(srctree)/drivers/clk/qcom/mdss -I$(srctree)/drivers/platform/msm/ipa/ipa_v2 -I$(srctree)/drivers/platform/msm/ipa/ipa_v3 -I$(srctree)/drivers/platform/msm/ipa/ipa_clients \0|' Makefile
+          echo "=== Makefile patched ==="
           
           make -j$(nproc) ARCH=arm64 \
             CC=${{ env.CC }} \
@@ -79,7 +75,6 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             KCFLAGS="-Wno-strict-prototypes -Wno-array-parameter -Wno-implicit-function-declaration" \
-            EXTRA_CFLAGS="-I$(pwd)/drivers/bluetooth -I$(pwd)/drivers/gpu/msm -I$(pwd)/drivers/clk/qcom/mdss -I$(pwd)/drivers/platform/msm/ipa/ipa_v2 -I$(pwd)/drivers/platform/msm/ipa/ipa_v3 -I$(pwd)/drivers/platform/msm/ipa/ipa_clients" \
             CLANG_TARGET_ARM32="--target=arm-linux-gnueabi" \
             CLANG_GCC32_TC="--gcc-toolchain=/usr" \
             CLANG_PREFIX32="" \
