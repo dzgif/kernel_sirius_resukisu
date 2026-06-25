@@ -45,11 +45,7 @@ jobs:
           cd ${{ github.workspace }}/kernel
           
           make ARCH=arm64 mrproper
-          make ARCH=arm64 sdm670-perf_defconfig
-          
-          # Apply fragments
-          scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/xiaomi/sdm710-common.config
-          scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/xiaomi/sirius.config
+          make ARCH=arm64 sirius_rom_defconfig
           
           # Enable KSU
           echo "CONFIG_KSU=y" >> .config
