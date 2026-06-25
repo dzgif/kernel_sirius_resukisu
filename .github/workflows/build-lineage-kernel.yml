@@ -78,7 +78,8 @@ jobs:
             CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            KCFLAGS="-Wno-strict-prototypes -Wno-array-parameter -Wno-implicit-function-declaration -Wno-error -I$(pwd)/drivers/bluetooth" \
+            KCFLAGS="-Wno-strict-prototypes -Wno-array-parameter -Wno-implicit-function-declaration" \
+            EXTRA_CFLAGS="-I$(pwd)/drivers/bluetooth -I$(pwd)/drivers/gpu/msm -I$(pwd)/drivers/clk/qcom/mdss -I$(pwd)/drivers/platform/msm/ipa/ipa_v2 -I$(pwd)/drivers/platform/msm/ipa/ipa_v3 -I$(pwd)/drivers/platform/msm/ipa/ipa_clients" \
             CLANG_TARGET_ARM32="--target=arm-linux-gnueabi" \
             CLANG_GCC32_TC="--gcc-toolchain=/usr" \
             CLANG_PREFIX32="" \
