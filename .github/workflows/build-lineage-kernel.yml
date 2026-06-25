@@ -45,7 +45,7 @@ jobs:
           cd ${{ github.workspace }}/kernel
           
           # Copy ROM config from our repo
-          cp ${{ github.workspace }}/arch/arm64/configs/sirius_rom_defconfig arch/arm64/configs/
+          curl -sL https://raw.githubusercontent.com/dzgif/kernel_sirius_resukisu/main/arch/arm64/configs/sirius_rom_defconfig -o arch/arm64/configs/sirius_rom_defconfig
           make ARCH=arm64 mrproper
           make ARCH=arm64 sirius_rom_defconfig
           
