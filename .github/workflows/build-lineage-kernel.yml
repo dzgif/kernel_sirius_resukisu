@@ -30,7 +30,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
             build-essential bc bison flex libssl-dev libelf-dev \
-            cpio kmod gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+            cpio kmod gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+            binutils-arm-linux-gnueabi
 
       - name: Setup Clang r563880c
         run: |
