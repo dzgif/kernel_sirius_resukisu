@@ -44,14 +44,7 @@ jobs:
           cd ${{ github.workspace }}/kernel
           
           make ARCH=arm64 mrproper
-          make ARCH=arm64 sdm670-perf_defconfig
-          
-          # Apply xiaomi fragments if they exist
-          for frag in arch/arm64/configs/xiaomi/sdm710-common.config arch/arm64/configs/xiaomi/sirius.config; do
-            if [ -f "$frag" ]; then
-              scripts/kconfig/merge_config.sh -m .config "$frag"
-            fi
-          done
+          make ARCH=arm64 sirius_defconfig
           
           # Enable KSU
           echo "CONFIG_KSU=y" >> .config
