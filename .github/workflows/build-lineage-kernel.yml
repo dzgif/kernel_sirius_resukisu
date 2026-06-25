@@ -1,0 +1,91 @@
+name: Build LineageOS Kernel + rsuntk KSU
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    
+    steps:
+      - name: Checkout LineageOS kernel
+        run: |
+          git clone --depth=1 --single-branch -b lineage-21 \
+            https://github.com/LineageOS/android_kernel_xiaomi_sdm710.git kernel
+          cd kernel
+          # Add KSU from rsuntk's fork
+          git clone --depth=1 https://github.com/rsuntk/KernelSU /tmp/ksu
+          ln -sf /tmp/ksu/kernel drivers/kernelsu
+          # Add to Makefile and Kconfig
+          grep -q "kernelsu" drivers/Makefile || echo 'obj-$(CONFIG_KSU) += kernelsu/' >> drivers/Makefile
+          grep -q 'source "drivers/kernelsu/Kconfig"' drivers/Kconfig || sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' drivers/Kconfig
+          echo "=== KSU check ==="
+          head -3 drivers/kernelsu/Kconfig
+          echo "=== Kernel version ==="
+          head -4 Makefile
+
+      - name: Setup build environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            cpio kmod gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+      - name: Setup Clang r563880c
+        run: |
+          git clone --depth=1 https://github.com/realahnet/clang-r563880c.git /tmp/clang
+          echo "CC=/tmp/clang/bin/clang" >> $GITHUB_ENV
+          echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+          /tmp/clang/bin/clang --version | head -1
+
+      - name: Build kernel
+        run: |
+          cd ${{ github.workspace }}/kernel
+          
+          make ARCH=arm64 mrproper
+          make ARCH=arm64 sdm670-perf_defconfig
+          
+          # Apply fragments
+          scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/xiaomi/sdm710-common.config
+          scripts/kconfig/merge_config.sh -m .config arch/arm64/configs/xiaomi/sirius.config
+          
+          # Enable KSU
+          echo "CONFIG_KSU=y" >> .config
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> .config
+          echo "CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK=y" >> .config
+          echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y" >> .config
+          echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK=y" >> .config
+          
+          make ARCH=arm64 olddefconfig
+          
+          echo "=== KSU config ==="
+          grep CONFIG_KSU .config
+          echo "=== Kernel version ==="
+          head -4 Makefile
+          
+          make -j$(nproc) ARCH=arm64 \
+            CC=${{ env.CC }} \
+            CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            KCFLAGS="-Wno-strict-prototypes -Wno-array-parameter" \
+            Image
+
+      - name: Package artifacts
+        if: always()
+        run: |
+          mkdir -p ${{ github.workspace }}/output
+          find ${{ github.workspace }}/kernel -name "Image" -path "*/boot/*" -exec cp {} ${{ github.workspace }}/output/ \;
+          cp ${{ github.workspace }}/kernel/.config ${{ github.workspace }}/output/kernel-config 2>/dev/null
+          cd ${{ github.workspace }}/output
+          echo "Date: $(date -u)" > build-info.txt
+          echo "Source: LineageOS/android_kernel_xiaomi_sdm710 lineage-21 + rsuntk/KernelSU" >> build-info.txt
+          ls -lh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-lineage-sirius-${{ github.sha }}
+          path: output/
+          retention-days: 30
