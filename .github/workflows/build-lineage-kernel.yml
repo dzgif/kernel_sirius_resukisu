@@ -78,7 +78,7 @@ jobs:
             CLANG_TRIPLE=${{ env.CLANG_TRIPLE }} \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            KCFLAGS="-Wno-strict-prototypes -Wno-array-parameter $TRACE_INCLUDES" \
+            KCFLAGS="-Wno-strict-prototypes -Wno-array-parameter -Wno-implicit-function-declaration" \
             CLANG_TARGET_ARM32="--target=arm-linux-gnueabi" \
             CLANG_GCC32_TC="--gcc-toolchain=/usr" \
             CLANG_PREFIX32="" \
