@@ -44,6 +44,8 @@ jobs:
         run: |
           cd ${{ github.workspace }}/kernel
           
+          # Copy ROM config from our repo
+          cp ${{ github.workspace }}/arch/arm64/configs/sirius_rom_defconfig arch/arm64/configs/
           make ARCH=arm64 mrproper
           make ARCH=arm64 sirius_rom_defconfig
           
