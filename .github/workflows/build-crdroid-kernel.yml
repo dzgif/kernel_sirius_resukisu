@@ -73,11 +73,11 @@ jobs:
       - name: Package artifacts
         if: always()
         run: |
-          mkdir -p output
-          cd ${{ github.workspace }}/kernel
-          cp arch/arm64/boot/Image output/ 2>/dev/null || echo "Image not found"
-          cp .config output/kernel-config 2>/dev/null || echo "config not found"
-          cd output
+          mkdir -p ${{ github.workspace }}/output
+          find ${{ github.workspace }}/kernel -name "Image" -path "*/boot/*" -exec ls -lh {} \;
+          find ${{ github.workspace }}/kernel -name "Image" -path "*/boot/*" -exec cp {} ${{ github.workspace }}/output/ \;
+          cp ${{ github.workspace }}/kernel/.config ${{ github.workspace }}/output/kernel-config 2>/dev/null || echo "config not found"
+          cd ${{ github.workspace }}/output
           echo "Date: $(date -u)" > build-info.txt
           echo "Source: uixdess_kernel_xiaomi_sdm710 12.0 + rsuntk/KernelSU" >> build-info.txt
           ls -lh
