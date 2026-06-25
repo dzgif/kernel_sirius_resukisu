@@ -65,9 +65,14 @@ jobs:
           echo "=== Kernel version ==="
           head -4 Makefile
           
-          # Patch Makefile to add include paths for missing headers
-          sed -i 's|LINUXINCLUDE.*|LINUXINCLUDE := -I$(srctree)/drivers/bluetooth -I$(srctree)/drivers/gpu/msm -I$(srctree)/drivers/clk/qcom/mdss -I$(srctree)/drivers/platform/msm/ipa/ipa_v2 -I$(srctree)/drivers/platform/msm/ipa/ipa_v3 -I$(srctree)/drivers/platform/msm/ipa/ipa_clients \0|' Makefile
-          echo "=== Makefile patched ==="
+          # Add include paths for missing headers via ccflags
+          echo 'ccflags-y += -I$(srctree)/drivers/bluetooth' >> drivers/bluetooth/Makefile
+          echo 'ccflags-y += -I$(srctree)/drivers/gpu/msm' >> drivers/gpu/msm/Makefile
+          echo 'ccflags-y += -I$(srctree)/drivers/clk/qcom/mdss' >> drivers/clk/qcom/mdss/Makefile
+          echo 'ccflags-y += -I$(srctree)/drivers/platform/msm/ipa/ipa_v2' >> drivers/platform/msm/ipa/ipa_v2/Makefile
+          echo 'ccflags-y += -I$(srctree)/drivers/platform/msm/ipa/ipa_v3' >> drivers/platform/msm/ipa/ipa_v3/Makefile
+          echo 'ccflags-y += -I$(srctree)/drivers/platform/msm/ipa/ipa_clients' >> drivers/platform/msm/ipa/ipa_clients/Makefile
+          echo "=== Include paths added ==="
           
           make -j$(nproc) ARCH=arm64 \
             CC=${{ env.CC }} \
