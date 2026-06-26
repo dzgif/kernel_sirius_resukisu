@@ -55,6 +55,11 @@ jobs:
           echo "CONFIG_KSU_MANUAL_HOOK_AUTO_SETUID_HOOK=y" >> .config
           echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INITRC_HOOK=y" >> .config
           echo "CONFIG_KSU_MANUAL_HOOK_AUTO_INPUT_HOOK=y" >> .config
+          echo "CONFIG_TREE_SRCU=y" >> .config
+          echo "CONFIG_RCU_NEED_SEGCBLIST=y" >> .config
+          echo "CONFIG_ARCH_HAS_SET_MEMORY=y" >> .config
+          echo "CONFIG_ARCH_HAS_RELR=y" >> .config
+          echo "CONFIG_GRO_CELLS=y" >> .config
           
           make ARCH=arm64 olddefconfig
           
